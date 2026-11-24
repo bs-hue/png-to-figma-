@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PNG → Figma Converter | Offline OCR & Shape Detection</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              DEFAULT: '#33B6F7',
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#33B6F7',
+              600: '#0284c7',
+              700: '#0369a1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom SVG Overlay styles */
+    .svg-bbox {
+      pointer-events: all;
+      cursor: pointer;
+      transition: stroke-width 0.15s ease, fill-opacity 0.15s ease;
+    }
+    .svg-bbox-text {
+      stroke: #16a34a; /* Green */
+      fill: #22c55e;
+      fill-opacity: 0.18;
+      stroke-width: 1.5;
+    }
+    .svg-bbox-shape {
+      stroke: #2563eb; /* Blue */
+      fill: #3b82f6;
+      fill-opacity: 0.14;
+      stroke-width: 1.5;
+    }
+    .svg-bbox-image {
+      stroke: #d97706; /* Orange */
+      fill: #f59e0b;
+      fill-opacity: 0.22;
+      stroke-width: 1.5;
+    }
+    .svg-bbox:hover, .svg-bbox.active-highlight {
+      stroke-width: 3.5 !important;
+      fill-opacity: 0.5 !important;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+    }
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- Friendly Toast Message Alert -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand/10 border border-brand/30 flex items-center justify-center text-brand font-bold text-xl shadow-xs">
+          <svg class="w-6 h-6 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 3m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"></path>
+            <path d="M9 7l6 0"></path>
+            <path d="M9 11l6 0"></path>
+            <path d="M9 15l4 0"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            PNG → Figma Converter
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">v2.0</span>
+          </h1>
+          <p class="text-xs text-slate-500">Offline Tesseract OCR & OpenCV Shape Detection</p>
+        </div>
+      </div>
+
+      <!-- Backend Connection Status Dot -->
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200">
+        <span id="backend-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+        <span id="backend-status-text" class="text-xs font-medium text-slate-700">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Upload Box Area -->
+    <section>
+      <div id="drop-zone" class="relative group border-2 border-dashed border-slate-300 hover:border-brand bg-white rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all duration-200 hover:shadow-md">
+        <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp" class="hidden">
+        
+        <!-- Default State -->
+        <div id="drop-content" class="flex flex-col items-center justify-center gap-3">
+          <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-base font-semibold text-slate-800">
+              Drag & drop your PNG or JPG here, or <span class="text-brand hover:underline font-bold">click to upload</span>
+            </p>
+            <p class="text-xs text-slate-500 mt-1">Maximum file size: 10 MB (PNG, JPG, or WEBP)</p>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">🔒 100% Offline & Private</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-brand-50 text-brand-700 border border-brand-200">No GPU or Cloud Required</span>
+          </div>
+        </div>
+
+        <!-- Loading Spinner Overlay -->
+        <div id="loading-spinner" class="hidden absolute inset-0 bg-white/95 rounded-2xl flex flex-col items-center justify-center gap-4 z-20 backdrop-blur-xs">
+          <div class="w-12 h-12 border-4 border-slate-200 border-t-brand rounded-full animate-spin"></div>
+          <div class="text-center">
+            <h3 id="loading-title" class="text-sm font-semibold text-slate-800">Processing image...</h3>
+            <p id="loading-desc" class="text-xs text-slate-500 mt-0.5">Running Tesseract OCR & OpenCV contour detection...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Sample Buttons -->
+      <div class="mt-3 flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-medium text-slate-500">Quick test with samples:</span>
+        <div id="sample-buttons" class="flex items-center gap-1.5 flex-wrap">
+          <button class="sample-btn text-xs px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium transition-colors" data-file="test1.png">test1.png</button>
+          <button class="sample-btn text-xs px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium transition-colors" data-file="call.png">call.png</button>
+          <button class="sample-btn text-xs px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium transition-colors" data-file="main.png">main.png</button>
+          <button class="sample-btn text-xs px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium transition-colors" data-file="Revised.png">Revised.png</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Side-by-Side Visualizer Section -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <!-- Top Visualizer Control Bar -->
+      <div class="px-5 py-3 border-b border-slate-200 bg-slate-50/75 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-4">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Canvas View</span>
+          <!-- Layer Toggles -->
+          <div class="flex items-center gap-4 text-xs">
+            <label class="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+              <input type="checkbox" id="check-text" checked class="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+              <span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span>
+              Text (<span id="badge-text-count">0</span>)
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+              <input type="checkbox" id="check-shape" checked class="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+              <span class="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block"></span>
+              Shapes (<span id="badge-shape-count">0</span>)
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+              <input type="checkbox" id="check-image" checked class="w-3.5 h-3.5 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+              <span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block"></span>
+              Images (<span id="badge-image-count">0</span>)
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btn-reset-view" class="text-xs px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-md text-slate-700 font-medium">Reset View</button>
+        </div>
+      </div>
+
+      <!-- Split Canvas Viewports -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+        <!-- Left: Original Image -->
+        <div class="flex flex-col h-[520px]">
+          <div class="px-4 py-2 bg-slate-100/50 border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-600">
+            <span>ORIGINAL IMAGE</span>
+            <span id="orig-size-label" class="font-mono text-slate-400">-- x --</span>
+          </div>
+          <div id="viewport-orig" class="flex-1 overflow-auto bg-slate-900/5 p-4 flex items-start justify-center relative">
+            <img id="img-original" class="max-w-full h-auto shadow-sm rounded border border-slate-200 hidden select-none" alt="Original Upload">
+            <div id="orig-placeholder" class="m-auto text-slate-400 text-sm text-center">
+              <svg class="w-10 h-10 mx-auto mb-2 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Upload an image to preview
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Detected Image with Overlay -->
+        <div class="flex flex-col h-[520px]">
+          <div class="px-4 py-2 bg-slate-100/50 border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-600">
+            <span>DETECTED (coloured boxes)</span>
+            <span class="text-[11px] text-slate-500 font-normal">Hover over box for details</span>
+          </div>
+          <div id="viewport-detected" class="flex-1 overflow-auto bg-slate-900/5 p-4 flex items-start justify-center relative">
+            <div id="detected-canvas-container" class="relative inline-block hidden">
+              <img id="img-detected-bg" class="max-w-full h-auto opacity-35 select-none" alt="Detected Background">
+              <svg id="svg-detection-layer" class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+            </div>
+            <div id="detected-placeholder" class="m-auto text-slate-400 text-sm text-center">
+              <svg class="w-10 h-10 mx-auto mb-2 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              Detected shapes & text will be marked here
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Summary Counts & Actions Bar -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3 sm:gap-6 flex-wrap">
+        <!-- Summary Counts -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Found:</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span id="sum-text">0</span> text
+          </span>
+          <span class="text-slate-300">|</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span id="sum-shapes">0</span> shapes
+          </span>
+          <span class="text-slate-300">|</span>
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span id="sum-images">0</span> images
+          </span>
+        </div>
+
+        <!-- Job ID -->
+        <div class="flex items-center gap-2 border-l border-slate-200 pl-4 sm:pl-6">
+          <span class="text-xs text-slate-500">Job ID:</span>
+          <code id="job-id-code" class="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">------</code>
+          <button id="btn-copy-job" class="text-xs px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 font-medium transition-colors" title="Copy Job ID">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+        <button id="btn-download-svg" disabled class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors" title="Download layered SVG that Figma converts to native frames and text on drag & drop">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download for Figma (.svg)
+        </button>
+        <button id="btn-copy-script" disabled class="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors" title="Copy 1-click code to run in Figma Console">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copy Figma Script
+        </button>
+        <button id="btn-download-json" disabled class="inline-flex items-center gap-1.5 px-3 py-2 bg-brand hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Download JSON
+        </button>
+        <button id="btn-figma-guide" class="inline-flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs sm:text-sm font-medium rounded-xl transition-colors" title="How to import into Figma">
+          <svg class="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 2h4a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v0a4 4 0 0 1 4-4z"/>
+            <path d="M8 10h4a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v0a4 4 0 0 1 4-4z"/>
+            <path d="M12 18a4 4 0 1 1-8 0v-4h4a4 4 0 0 1 4 4z"/>
+          </svg>
+          Figma Guide
+        </button>
+        <button id="btn-view-raw-json" disabled class="inline-flex items-center gap-1 px-2.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 text-xs sm:text-sm font-medium rounded-xl transition-colors">
+          <span>{ }</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Detected Element List Table -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold text-slate-800">Detected Element List</h2>
+          <p class="text-xs text-slate-500">Every bounding box, text line, container, and color</p>
+        </div>
+        <!-- Search filter -->
+        <div class="relative w-64">
+          <input type="text" id="table-search" placeholder="Search element or text..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand">
+          <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto max-h-[380px]">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 z-10 text-slate-500 font-semibold uppercase tracking-wider">
+            <tr>
+              <th class="py-2.5 px-4 w-28">Type</th>
+              <th class="py-2.5 px-4">Name / Content</th>
+              <th class="py-2.5 px-4 w-32">Dimensions (W × H)</th>
+              <th class="py-2.5 px-4 w-32">Color / Fill</th>
+              <th class="py-2.5 px-4 w-24 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="elements-table-body" class="divide-y divide-slate-100 text-slate-700">
+            <tr>
+              <td colspan="5" class="py-12 text-center text-slate-400">
+                No elements detected yet. Upload an image above to start.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Recent Conversions Section -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">Recent Conversions (Last 10)</h2>
+        <span class="text-xs text-slate-400">Click to reopen</span>
+      </div>
+      <div id="recent-jobs-list" class="flex flex-wrap gap-2">
+        <span class="text-xs text-slate-400">No conversions yet.</span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Floating Hover Tooltip -->
+  <div id="floating-tooltip" class="hidden fixed z-50 pointer-events-none bg-slate-900/90 text-white rounded-lg p-2.5 text-xs shadow-xl backdrop-blur-xs border border-slate-700/50 max-w-xs transition-opacity duration-150">
+    <div id="tooltip-header" class="font-bold text-slate-200 mb-1"></div>
+    <div id="tooltip-body" class="space-y-0.5 text-slate-300"></div>
+  </div>
+
+  <!-- Raw JSON Modal -->
+  <div id="json-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="text-sm font-bold text-slate-800">layout.json (Figma Tree)</h3>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+      <div class="p-4 flex-1 overflow-auto bg-slate-900 text-slate-200 font-mono text-xs">
+        <pre><code id="json-code-view">{}</code></pre>
+      </div>
+      <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+        <button id="btn-copy-modal-json" class="px-3 py-1.5 bg-brand hover:bg-brand-600 text-white font-medium rounded-lg text-xs">Copy JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Figma Import Guide Modal -->
+  <div id="figma-guide-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">F</span>
+          <h3 class="text-base font-bold text-slate-900">How to Open in Figma (3 Simple Ways)</h3>
+        </div>
+        <button id="btn-close-guide" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+      
+      <div class="p-6 overflow-y-auto space-y-5 text-sm text-slate-700">
+        <!-- Option 1: Easiest -->
+        <div class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-emerald-900 flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-emerald-200 text-emerald-900 text-xs font-bold">Method 1 (Easiest & Fastest)</span>
+              Drag & Drop .SVG into Figma
+            </h4>
+          </div>
+          <p class="text-xs text-slate-600">
+            Click <strong>"Download for Figma (.svg)"</strong>. Then simply drag the downloaded <code>.svg</code> file directly from your downloads folder onto any open Figma canvas!
+          </p>
+          <p class="text-xs text-emerald-800 font-medium">
+            ✅ Figma will instantly convert it into editable Figma vector shapes, rectangles, and text layers!
+          </p>
+        </div>
+
+        <!-- Option 2: 1-Click Console -->
+        <div class="p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-2">
+          <h4 class="font-bold text-indigo-900 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-indigo-200 text-indigo-900 text-xs font-bold">Method 2</span>
+            1-Click Console Script (Native Figma Nodes)
+          </h4>
+          <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+            <li>Click <strong>"Copy Figma Script"</strong> on the dashboard.</li>
+            <li>In Figma desktop or browser, open any file.</li>
+            <li>Press <kbd class="px-1.5 py-0.5 bg-white border rounded font-mono text-[11px]">Ctrl + Alt + I</kbd> (or go to <strong>Menu ☰ → Plugins → Development → Open Console</strong>).</li>
+            <li>Paste the copied script into the console and press <kbd class="px-1.5 py-0.5 bg-white border rounded font-mono text-[11px]">Enter</kbd>.</li>
+          </ol>
+          <p class="text-xs text-indigo-800 font-medium">
+            ✅ Automatically builds native Figma Frames, Text layers with Inter font, and buttons.
+          </p>
+        </div>
+
+        <!-- Option 3: Local Plugin -->
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+          <h4 class="font-bold text-slate-900 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-xs font-bold">Method 3</span>
+            Official Local Figma Plugin
+          </h4>
+          <p class="text-xs text-slate-600">
+            Your project includes a ready-made plugin in <code>figma-plugin/manifest.json</code>:
+          </p>
+          <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+            <li>In Figma: <strong>Plugins → Development → Import plugin from manifest...</strong></li>
+            <li>Select <code>e:\Antigravity project\png2figma\figma-plugin\manifest.json</code>.</li>
+            <li>Run the plugin, enter your Job ID, and click <strong>Import to Canvas</strong>!</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+        <button id="btn-guide-ok" class="px-4 py-2 bg-brand hover:bg-brand-600 text-white font-semibold rounded-xl text-xs">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "PNG to Figma — BloomX",
+  "id": "png-to-figma-bloomx",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "*"
+    ],
+    "devAllowedDomains": [
+      "*"
+    ],
+    "reasoning": "Connects to the FastAPI backend (localhost or local network IP) to upload PNGs, fetch layout JSON, and retrieve cropped image assets."
+  }
+}

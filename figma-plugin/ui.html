@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PNG to Figma — BloomX</title>
+  <style>
+    :root {
+      --primary: #33B6F7;
+      --primary-hover: #0284c7;
+      --primary-light: #e0f2fe;
+      --primary-glow: rgba(51, 182, 247, 0.25);
+      --bg: #ffffff;
+      --surface: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --error-bg: #fef2f2;
+      --error-text: #991b1b;
+      --error-border: #fecaca;
+      --success-bg: #f0fdf4;
+      --success-text: #166534;
+      --success-border: #bbf7d0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 16px;
+      user-select: none;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #33B6F7 0%, #0284c7 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 0 2px 6px var(--primary-glow);
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .backend-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 12px;
+      background: #f1f5f9;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .backend-badge.online {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .backend-badge.offline {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+    .backend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Tabs */
+    .tab-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    /* Panels */
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Dropzone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 24px 14px;
+      text-align: center;
+      background: var(--surface);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 14px;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .drop-icon {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 8px;
+      color: var(--primary);
+    }
+    .drop-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .drop-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Selected file card */
+    .file-card {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 14px;
+    }
+    .file-card.show {
+      display: flex;
+    }
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+    }
+    .file-thumb {
+      width: 32px;
+      height: 32px;
+      background: var(--primary-light);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+    .file-details {
+      overflow: hidden;
+    }
+    .file-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+    .file-size {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .file-remove {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+      border-radius: 4px;
+    }
+    .file-remove:hover {
+      color: #ef4444;
+      background: #fee2e2;
+    }
+
+    /* Form Fields */
+    .field {
+      margin-bottom: 14px;
+    }
+    .label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .input-box {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .input-box:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s;
+      box-shadow: 0 2px 5px var(--primary-glow);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+    .btn-primary:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 8px;
+    }
+    .btn-secondary:hover {
+      background: #f1f5f9;
+    }
+
+    /* Progress & Status Card */
+    .progress-card {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .progress-card.show {
+      display: block;
+    }
+    .progress-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .progress-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .progress-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid #cbd5e1;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary) 0%, #0284c7 100%);
+      border-radius: 3px;
+      transition: width 0.2s ease-out;
+    }
+    .progress-detail {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Result State */
+    .result-card {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--success-border);
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+    .result-card.show {
+      display: block;
+    }
+    .result-title {
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .result-desc {
+      font-size: 11px;
+      line-height: 1.4;
+      opacity: 0.9;
+    }
+
+    /* Error Banner */
+    .error-card {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--error-border);
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+    .error-card.show {
+      display: block;
+    }
+    .error-title {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .error-desc {
+      font-size: 11px;
+      line-height: 1.35;
+      opacity: 0.9;
+    }
+
+    /* Settings section */
+    .settings-row {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .settings-toggle {
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .settings-toggle:hover {
+      color: var(--text);
+    }
+    .settings-content {
+      display: none;
+      margin-top: 8px;
+    }
+    .settings-content.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Brand Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">B</div>
+      <div>
+        <div class="brand-title">PNG to Figma</div>
+        <div class="brand-sub">BloomX Converter</div>
+      </div>
+    </div>
+    <div id="backend-status" class="backend-badge" title="Click to re-check backend connection">
+      <span class="backend-dot"></span>
+      <span id="backend-status-text">Checking...</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-a-btn">Upload PNG</button>
+    <button class="tab-btn" id="tab-b-btn">Paste Job ID</button>
+  </div>
+
+  <!-- Option A: Upload PNG -->
+  <div class="tab-panel active" id="panel-a">
+    <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.webp" style="display:none;">
+
+    <div class="dropzone" id="dropzone">
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <div class="drop-title">Upload PNG Image</div>
+      <div class="drop-hint">Drop your image here or click to browse (Max 10 MB)</div>
+    </div>
+
+    <div class="file-card" id="file-card">
+      <div class="file-info">
+        <div class="file-thumb" id="file-thumb">PNG</div>
+        <div class="file-details">
+          <div class="file-name" id="file-name">filename.png</div>
+          <div class="file-size" id="file-size">0 KB</div>
+        </div>
+      </div>
+      <button class="file-remove" id="file-remove" title="Remove image">✕</button>
+    </div>
+
+    <button class="btn-primary" id="convert-btn" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      Convert & Build Layers
+    </button>
+  </div>
+
+  <!-- Option B: Paste Job ID -->
+  <div class="tab-panel" id="panel-b">
+    <div class="field">
+      <label class="label">Job ID</label>
+      <input type="text" class="input-box" id="job-id-input" placeholder="e.g. 1f820f or e4c558">
+      <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+        Paste the 6-character Job ID from your dashboard.
+      </div>
+    </div>
+
+    <button class="btn-primary" id="fetch-job-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Fetch Job & Build
+    </button>
+  </div>
+
+  <!-- Progress Card -->
+  <div class="progress-card" id="progress-card">
+    <div class="progress-header">
+      <div class="progress-title">
+        <div class="progress-spinner" id="progress-spinner"></div>
+        <span id="progress-msg">Uploading...</span>
+      </div>
+      <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="progress-detail" id="progress-detail">Please keep Figma open while layers are generated.</div>
+  </div>
+
+  <!-- Result Success Card -->
+  <div class="result-card" id="result-card">
+    <div class="result-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      <span id="result-headline">Done!</span>
+    </div>
+    <div class="result-desc" id="result-message">Built all layers successfully.</div>
+    <button class="btn-secondary" id="reset-btn">Convert Another Image</button>
+  </div>
+
+  <!-- Friendly Error Card -->
+  <div class="error-card" id="error-card">
+    <div class="error-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span id="error-title">Backend is not running — start it first</span>
+    </div>
+    <div class="error-desc" id="error-desc">
+      Make sure your FastAPI server is running at http://localhost:8000.
+    </div>
+  </div>
+
+  <!-- Settings Row -->
+  <div class="settings-row">
+    <div class="settings-toggle" id="settings-toggle">
+      <span>⚙️ Backend: <span id="current-url-display">http://localhost:8000</span></span>
+      <span id="settings-chevron">▾</span>
+    </div>
+    <div class="settings-content" id="settings-content">
+      <div class="field" style="margin-top: 8px;">
+        <label class="label">Backend URL</label>
+        <input type="text" class="input-box" id="backend-url-input" value="http://localhost:8000">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let selectedFile = null;
+    let isWorking = false;
+
+    // Elements
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    const fileCard = document.getElementById('file-card');
+    const fileName = document.getElementById('file-name');
+    const fileSize = document.getElementById('file-size');
+    const fileThumb = document.getElementById('file-thumb');
+    const fileRemove = document.getElementById('file-remove');
+    const convertBtn = document.getElementById('convert-btn');
+
+    const tabABtn = document.getElementById('tab-a-btn');
+    const tabBBtn = document.getElementById('tab-b-btn');
+    const panelA = document.getElementById('panel-a');
+    const panelB = document.getElementById('panel-b');
+
+    const jobIdInput = document.getElementById('job-id-input');
+    const fetchJobBtn = document.getElementById('fetch-job-btn');
+
+    const progressCard = document.getElementById('progress-card');
+    const progressMsg = document.getElementById('progress-msg');
+    const progressBar = document.getElementById('progress-bar');
+    const progressPct = document.getElementById('progress-pct');
+    const progressDetail = document.getElementById('progress-detail');
+
+    const resultCard = document.getElementById('result-card');
+    const resultHeadline = document.getElementById('result-headline');
+    const resultMessage = document.getElementById('result-message');
+    const resetBtn = document.getElementById('reset-btn');
+
+    const errorCard = document.getElementById('error-card');
+    const errorTitle = document.getElementById('error-title');
+    const errorDesc = document.getElementById('error-desc');
+
+    const backendStatus = document.getElementById('backend-status');
+    const backendStatusText = document.getElementById('backend-status-text');
+    const backendUrlInput = document.getElementById('backend-url-input');
+    const currentUrlDisplay = document.getElementById('current-url-display');
+    const settingsToggle = document.getElementById('settings-toggle');
+    const settingsContent = document.getElementById('settings-content');
+
+    // Get current backend URL
+    function getBackendUrl() {
+      let url = backendUrlInput.value.trim() || 'http://localhost:8000';
+      return url.replace(/\/+$/, '');
+    }
+
+    // Ping backend health
+    async function checkBackendHealth() {
+      const url = getBackendUrl();
+      backendStatusText.textContent = 'Checking...';
+      backendStatus.className = 'backend-badge';
+      try {
+        const res = await fetch(`${url}/health`, { method: 'GET' });
+        if (res.ok) {
+          backendStatus.className = 'backend-badge online';
+          backendStatusText.textContent = 'Online';
+        } else {
+          backendStatus.className = 'backend-badge offline';
+          backendStatusText.textContent = 'Offline';
+        }
+      } catch (e) {
+        backendStatus.className = 'backend-badge offline';
+        backendStatusText.textContent = 'Offline';
+      }
+    }
+
+    // Tab Switcher
+    tabABtn.addEventListener('click', () => {
+      tabABtn.classList.add('active');
+      tabBBtn.classList.remove('active');
+      panelA.classList.add('active');
+      panelB.classList.remove('active');
+      clearError();
+    });
+
+    tabBBtn.addEventListener('click', () => {
+      tabBBtn.classList.add('active');
+      tabABtn.classList.remove('active');
+      panelB.classList.add('active');
+      panelA.classList.remove('active');
+      clearError();
+    });
+
+    // Settings Toggle
+    settingsToggle.addEventListener('click', () => {
+      settingsContent.classList.toggle('open');
+    });
+
+    backendUrlInput.addEventListener('input', () => {
+      currentUrlDisplay.textContent = getBackendUrl();
+      checkBackendHealth();
+    });
+
+    backendStatus.addEventListener('click', checkBackendHealth);
+
+    // Dropzone & File picker
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        handleFileSelect(fileInput.files[0]);
+      }
+    });
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function handleFileSelect(file) {
+      clearError();
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+        showError('Invalid file format', 'Please upload a .png, .jpg, or .webp image.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showError('File too big', 'Maximum allowed file size is 10 MB.');
+        return;
+      }
+
+      selectedFile = file;
+      fileName.textContent = file.name;
+      fileSize.textContent = formatBytes(file.size);
+      fileThumb.textContent = ext;
+      fileCard.classList.add('show');
+      dropzone.style.display = 'none';
+      convertBtn.disabled = false;
+    }
+
+    fileRemove.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = '';
+      fileCard.classList.remove('show');
+      dropzone.style.display = 'block';
+      convertBtn.disabled = true;
+      clearError();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      resultCard.classList.remove('show');
+      progressCard.classList.remove('show');
+      selectedFile = null;
+      fileInput.value = '';
+      fileCard.classList.remove('show');
+      dropzone.style.display = 'block';
+      convertBtn.disabled = true;
+      jobIdInput.value = '';
+      clearError();
+    });
+
+    // Error & Progress Helpers
+    function showError(title, desc) {
+      errorTitle.textContent = title;
+      errorDesc.textContent = desc;
+      errorCard.classList.add('show');
+      progressCard.classList.remove('show');
+      setWorking(false);
+    }
+
+    function clearError() {
+      errorCard.classList.remove('show');
+    }
+
+    function setWorking(working) {
+      isWorking = working;
+      convertBtn.disabled = working || !selectedFile;
+      fetchJobBtn.disabled = working;
+    }
+
+    function updateProgress(msg, pct, detail) {
+      progressCard.classList.add('show');
+      resultCard.classList.remove('show');
+      clearError();
+      progressMsg.textContent = msg;
+      const safePct = Math.min(100, Math.max(0, Math.round(pct)));
+      progressBar.style.width = safePct + '%';
+      progressPct.textContent = safePct + '%';
+      if (detail) {
+        progressDetail.textContent = detail;
+      }
+    }
+
+    // Fetch cropped image assets in the UI and return Uint8Array map
+    async function fetchAllCroppedImages(nodes, backendUrl) {
+      const imagesData = {};
+      const imageNodes = [];
+
+      function collect(list) {
+        if (!Array.isArray(list)) return;
+        for (const item of list) {
+          if (item.type === 'image' && item.imageUrl) {
+            imageNodes.push(item);
+          }
+          if (item.children && item.children.length > 0) {
+            collect(item.children);
+          }
+        }
+      }
+      collect(nodes);
+
+      const total = imageNodes.length;
+      for (let i = 0; i < total; i++) {
+        const node = imageNodes[i];
+        updateProgress('Reading image...', 60 + Math.round((i / (total || 1)) * 20), `Downloading cropped asset ${i + 1} of ${total}...`);
+        try {
+          let url = node.imageUrl;
+          if (!url.startsWith('http')) {
+            const cleanBase = backendUrl.replace(/\/+$/, '');
+            const cleanPath = url.startsWith('/') ? url : `/${url}`;
+            url = `${cleanBase}${cleanPath}`;
+          }
+          const res = await fetch(url);
+          if (res.ok) {
+            const buffer = await res.arrayBuffer();
+            const uint8 = new Uint8Array(buffer);
+            imagesData[node.id] = uint8;
+            if (node.imageUrl) {
+              imagesData[node.imageUrl] = uint8;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch image asset:', node.imageUrl, e);
+        }
+      }
+      return imagesData;
+    }
+
+    // Option A: Upload PNG -> POST /convert -> get job_id -> fetch layout
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile || isWorking) return;
+      setWorking(true);
+      clearError();
+
+      const backendUrl = getBackendUrl();
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      updateProgress('Uploading...', 15, 'Sending PNG to local analysis engine...');
+
+      try {
+        // Send to backend
+        let convertRes;
+        try {
+          convertRes = await fetch(`${backendUrl}/convert`, {
+            method: 'POST',
+            body: formData
+          });
+        } catch (netErr) {
+          showError('Backend is not running — start it first', 'Cannot connect to ' + backendUrl + '. Open your terminal and run: python backend/main.py');
+          return;
+        }
+
+        if (!convertRes.ok) {
+          const errData = await convertRes.json().catch(() => ({ detail: 'Conversion failed' }));
+          showError('Conversion Failed', errData.detail || 'The backend failed to process this image.');
+          return;
+        }
+
+        updateProgress('Reading image...', 50, 'Extracting OCR text, shapes, and cropping assets...');
+        const meta = await convertRes.json();
+        const jobId = meta.job_id;
+
+        // Fetch layout.json
+        const layoutRes = await fetch(`${backendUrl}/job/${jobId}`);
+        if (!layoutRes.ok) {
+          showError('Layout not found', `Could not retrieve layout.json for Job ${jobId}`);
+          return;
+        }
+        const layout = await layoutRes.json();
+
+        // Download cropped images as Uint8Array
+        const imagesData = await fetchAllCroppedImages(layout.nodes, backendUrl);
+
+        // Send to code.js
+        updateProgress('Building layers...', 80, 'Creating native frames and editable text in Figma...');
+        parent.postMessage({
+          pluginMessage: {
+            type: 'build-layout',
+            layout: layout,
+            imagesData: imagesData,
+            filename: selectedFile.name
+          }
+        }, '*');
+
+      } catch (err) {
+        showError('Error', err.message || 'An unexpected error occurred.');
+      }
+    });
+
+    // Option B: Paste existing Job ID -> GET /job/{job_id}
+    fetchJobBtn.addEventListener('click', async () => {
+      const jobId = jobIdInput.value.trim();
+      if (!jobId) {
+        showError('Job ID Required', 'Please enter a 6-character Job ID (e.g. 1f820f).');
+        return;
+      }
+      if (isWorking) return;
+
+      setWorking(true);
+      clearError();
+      const backendUrl = getBackendUrl();
+
+      updateProgress('Fetching layout...', 25, `Looking up Job ${jobId}...`);
+
+      try {
+        let layoutRes;
+        try {
+          layoutRes = await fetch(`${backendUrl}/job/${jobId}`);
+        } catch (netErr) {
+          showError('Backend is not running — start it first', 'Cannot connect to ' + backendUrl + '. Open your terminal and run: python backend/main.py');
+          return;
+        }
+
+        if (layoutRes.status === 404) {
+          showError('Invalid Job ID', `Job "${jobId}" was not found or has expired. Please check the dashboard.`);
+          return;
+        }
+
+        if (!layoutRes.ok) {
+          showError('Fetch Error', `Backend returned status ${layoutRes.status}.`);
+          return;
+        }
+
+        const layout = await layoutRes.json();
+        updateProgress('Reading image...', 55, 'Downloading cropped asset images...');
+
+        const imagesData = await fetchAllCroppedImages(layout.nodes, backendUrl);
+
+        updateProgress('Building layers...', 80, 'Creating native frames and editable text in Figma...');
+        parent.postMessage({
+          pluginMessage: {
+            type: 'build-layout',
+            layout: layout,
+            imagesData: imagesData,
+            filename: layout.filename || `Job ${jobId}`
+          }
+        }, '*');
+
+      } catch (err) {
+        showError('Error', err.message || 'An unexpected error occurred.');
+      }
+    });
+
+    // Messages from code.js
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === 'progress') {
+        const current = msg.current || 0;
+        const total = msg.total || 1;
+        // Progress maps from 80% to 99% during layer building
+        const pct = total > 0 ? 80 + Math.round((current / total) * 19) : 85;
+        updateProgress(msg.message || `Building layers... ${current}/${total}`, pct, `Creating layer ${current} of ${total}...`);
+
+      } else if (msg.type === 'done') {
+        setWorking(false);
+        progressCard.classList.remove('show');
+        resultCard.classList.add('show');
+        resultHeadline.textContent = 'Done!';
+        resultMessage.textContent = msg.message || `Built ${msg.built} of ${msg.total} layers.`;
+
+      } else if (msg.type === 'error') {
+        setWorking(false);
+        showError('Build Error', msg.message || 'Figma plugin encountered an error building layers.');
+      }
+    };
+
+    // Initial health check on plugin startup
+    checkBackendHealth();
+  </script>
+</body>
+</html>
